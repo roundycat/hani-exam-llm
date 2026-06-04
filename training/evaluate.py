@@ -26,6 +26,7 @@ from config import (
     FULL_DATASET, RESULTS_DIR, SYSTEM_PROMPT, ANSWER_INSTRUCTION,
     BASE_MODELS, GPT4_FINETUNED_MODEL, GPT5_FINETUNED_MODEL,
     VAL_RATIO, RANDOM_SEED, EVAL_CONCURRENCY, EVAL_MAX_TOKENS,
+    EVAL_MAX_TOKENS_REASONING, EVAL_REASONING_EFFORT,
     REQUEST_TIMEOUT, is_reasoning_model,
 )
 
@@ -65,30 +66,53 @@ def build_prompt(row: dict) -> str:
 
 
 def parse_answer(text: str) -> int | None:
-    """모델 출력에서 정답 번호(1~5)를 최대한 견고하게 추출."""
+    """모델 출력에서 정답 번호(1~5)를 견고하게 추출.
+
+    우선순위:
+      1) "정답: N" / "정답 N" 패턴 (해설형/CoT 출력 대응) → 가장 신뢰도 높음
+      2) 동그라미 숫자(①~⑤)
+      3) 마지막에 등장하는 1~5 숫자 (해설 본문의 숫자에 휘둘리지 않도록 '마지막'을 택함)
+    """
     if not text:
         return None
+    # 1) 명시적 "정답" 표기
+    m = re.search(r"정답\s*[:：]?\s*([1-5])", text)
+    if m:
+        return int(m.group(1))
+    # 2) 동그라미 숫자
     for ch, num in CIRCLED.items():
         if ch in text:
             return num
-    m = re.search(r"[1-5]", text)
-    return int(m.group()) if m else None
+    # 3) 마지막 1~5 숫자
+    nums = re.findall(r"[1-5]", text)
+    return int(nums[-1]) if nums else None
 
 
 def ask(model_id: str, row: dict) -> int | None:
+    """모델에게 한 문항을 물어 정답 번호(1~5)를 받아 파싱."""
+    reasoning = is_reasoning_model(model_id)
     kwargs = dict(
         model=model_id,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": build_prompt(row)},
         ],
-        max_completion_tokens=EVAL_MAX_TOKENS,
+        # 추론형은 추론 토큰까지 포함되므로 예산을 넉넉히 준다.
+        max_completion_tokens=EVAL_MAX_TOKENS_REASONING if reasoning else EVAL_MAX_TOKENS,
         timeout=REQUEST_TIMEOUT,
     )
-    # 추론형 모델은 temperature 등을 받지 않으므로 일반 모델에만 지정
-    if not is_reasoning_model(model_id):
-        kwargs["temperature"] = 0
-    resp = client.chat.completions.create(**kwargs)
+    if reasoning:
+        # 추론 강도 지정(비용 절감). 미지원 모델이면 제거 후 재시도.
+        kwargs["reasoning_effort"] = EVAL_REASONING_EFFORT
+    else:
+        kwargs["temperature"] = 0  # 재현성
+
+    try:
+        resp = client.chat.completions.create(**kwargs)
+    except Exception:
+        # reasoning_effort 등 일부 파라미터를 모델이 거부하면 빼고 한 번 더 시도
+        kwargs.pop("reasoning_effort", None)
+        resp = client.chat.completions.create(**kwargs)
     return parse_answer(resp.choices[0].message.content or "")
 
 

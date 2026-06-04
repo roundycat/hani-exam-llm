@@ -1,0 +1,76 @@
+name: Evaluate (한의학 문제 정답률)
+
+# 평가는 OpenAI API 비용이 발생하므로 자동(push/PR) 트리거 대신 '수동 실행'을 기본으로 한다.
+# Actions 탭 → "Evaluate ..." → Run workflow 로 모델/평가범위를 골라 실행한다.
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "평가할 모델 ID(공백 구분). 비우면 gpt-4o-2024-08-06 1개."
+        required: false
+        default: "gpt-4o-2024-08-06"
+      eval_all:
+        description: "전체 텍스트 문항 평가(true) / 검증셋만(false)"
+        type: boolean
+        required: false
+        default: false
+  # 정기 평가가 필요하면 아래 주석을 해제(매월 1일 00:00 UTC). 비용 주의!
+  # schedule:
+  #   - cron: "0 0 1 * *"
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}   # 저장소 Secrets 에 등록 필요
+      PYTHONUTF8: "1"                                  # 한글 파일/출력 안전
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Guard - API key present
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY 시크릿이 없습니다. Settings → Secrets and variables → Actions 에 등록하세요."
+            exit 1
+          fi
+
+      - name: Prepare data (train/val split)
+        run: python training/prepare_data.py
+
+      - name: Run evaluation
+        working-directory: training
+        run: |
+          ARGS="--models ${{ github.event.inputs.models || 'gpt-4o-2024-08-06' }}"
+          if [ "${{ github.event.inputs.eval_all }}" = "true" ]; then ARGS="$ARGS --all"; fi
+          echo "evaluate.py $ARGS"
+          python evaluate.py $ARGS
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: results/
+          if-no-files-found: warn
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## 평가 결과 요약" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f results/summary.json ]; then
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat results/summary.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "summary.json 없음 (로그 확인)" >> "$GITHUB_STEP_SUMMARY"
+          fi

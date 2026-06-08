@@ -12,9 +12,10 @@ _*.png
 # --- 세션/도구 로컬 설정 ---
 .claude/
 
-# --- 파인튜닝/평가 산출물 ---
+# --- 파인튜닝/평가 산출물 (레포 루트의 작업 디렉터리만 무시; 중첩 경로는 제외) ---
 data/finetune_*.jsonl
-results/
+/results/
+/eval/
 
 # --- Python ---
 __pycache__/

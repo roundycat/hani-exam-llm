@@ -6,10 +6,11 @@
 Claude 3티어와 GPT 3종에게 **폐쇄형(closed-book)** 으로 풀게 해 정답률을 비교하고,
 추가로 **Qwen2.5-7B를 LoRA 파인튜닝**해 학습 전후를 검증셋에서 비교했다.
 
-> 📄 **논문용 종합 결과 문서: [PAPER_RESULTS.md](PAPER_RESULTS.md)** (초록·방법·결과 표1–4·한계, 검증 완료).
-> 표 수치 단일 진실원은 [results_tables.md](results_tables.md).
-> 🔬 **내과학 정답률 개선 플로우: [NAEGWA_IMPROVEMENT.md](NAEGWA_IMPROVEMENT.md)**
-> (변증추론+자기일관성+앙상블 → 내과학 74%→83.3%, 내과학2 57%→70%).
+> 📘 **최종 종합 보고서(논문 형식): [FINAL_REPORT.md](FINAL_REPORT.md)** — 벤치마크 + 파인튜닝 +
+> 내과학 개선(변증·자기일관성·앙상블·RAG)까지 전부 포함, "무엇이 나아졌는가" 정리.
+> 〔보조 문서: [PAPER_RESULTS.md](PAPER_RESULTS.md)(벤치마크+파인튜닝), [NAEGWA_IMPROVEMENT.md](NAEGWA_IMPROVEMENT.md)(내과학 개선), [results_tables.md](results_tables.md)(표 단일 진실원)〕
+>
+> **핵심 개선:** 내과학 74.0%→83.3%(+9.3%p) · 최난도 내과학2 56.7%→70.0%→**83.3%**(RAG, 총 +26.6%p).
 
 > 데이터 출처·저작권은 상위 레포 README 참고. 국시원 기출은 저작권 보호 대상이며 개인 학습·연구용.
 
